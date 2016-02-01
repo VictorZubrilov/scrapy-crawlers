@@ -1,0 +1,127 @@
+# -*- coding: utf-8 -*-
+from scrapy.contrib.loader.processor import TakeFirst, MapCompose, Join
+#from scrapy.contrib.linkextractors.sgml import SgmlLinkExtractor
+from scrapy.contrib.linkextractors.lxmlhtml import LxmlLinkExtractor
+from scrapy.contrib.spiders import CrawlSpider, Rule
+from scrapy.selector import HtmlXPathSelector
+from scrapy.contrib.loader import ItemLoader
+from scrapy.http import FormRequest, Request
+from scrapy import Spider
+from kuzovnoyru.items import ProductItem
+from kuzovnoyru.settings import DB_CONNECT
+import time, re, MySQLdb, urllib, os
+ 
+class KuzovnoyruLoader(ItemLoader):
+    def proc_price(value):
+        return re.sub(u'[^0-9]', '', value)
+    
+    def proc_cat(value):
+        return re.sub(u'запчасти ', '', value)
+        
+    def proc_avail(value):
+        if value:
+            return "10"
+        else:
+            return "0"
+            
+    default_output_processor = TakeFirst() 
+     
+    price_in = MapCompose(proc_price) 
+    avail_in = MapCompose(proc_avail) 
+    cat_1_in = MapCompose(proc_cat)   
+    cat_2_in = MapCompose(proc_cat)    
+    cat_3_in = MapCompose(proc_cat)        
+ 
+class KuzovnoyruSpider(Spider): #CrawlSpider
+    name = "kuzovnoyru_spider"
+    
+    allowed_domains = ["kuzovnoy.ru"] 
+    #start_urls = ["http://kuzovnoy.ru/"] 
+    #start_urls = ["http://kuzovnoy.ru/acura/acura_mdx_01-05/"] 
+    #start_urls = ["http://kuzovnoy.ru/great_wall/great_wall_deer_g3_g5_05/"] 
+    
+    def dont_filter(request):
+        request.meta["follow"] = True
+        return request
+            
+    #rules = (
+    #    Rule(SgmlLinkExtractor(restrict_xpaths="//div[@id='cats']"), process_request=dont_filter, follow=True),
+    #    Rule(SgmlLinkExtractor(restrict_xpaths="//tr[@class='sel']"), process_request=dont_filter, follow=True),
+    #    Rule(SgmlLinkExtractor(restrict_xpaths="//a[@class='item_title']"), callback='parse_item'),        
+    #)
+    
+    def start_requests(self):
+        request = Request(url="http://kuzovnoy.ru/", dont_filter=True, callback=self.parse_cats) 
+        yield request
+        
+    def parse_cats(self, response):
+        extr = LxmlLinkExtractor(restrict_xpaths="//div[@id='cats']")
+        links = extr.extract_links(response)
+               
+        for link in links:
+            request = Request(url=link.url, callback=self.parse_cat) 
+            request.meta["follow"] = True
+            yield request
+            
+    def parse_cat(self, response):
+        cats = response.xpath("//tr[@class='sel']")
+        
+        for cat in cats:
+            link = "http://kuzovnoy.ru" + cats.xpath("td/a/@href").extract()[0]
+            cat_desc = cats.xpath("string(td[2])").extract()[0]
+            
+            request = Request(url=link, callback=self.parse_items) 
+            request.meta["follow"] = True
+            request.meta['cat_desc'] = cat_desc
+            yield request
+            
+    def parse_items(self, response):        
+        extr = LxmlLinkExtractor(restrict_xpaths="//a[@class='item_title']")
+        links = extr.extract_links(response)
+        
+        for link in links:
+            request = Request(url=link.url, callback=self.parse_item) 
+            request.meta['cat_desc'] = response.meta['cat_desc']            
+            yield request 
+            
+    def parse_item(self, response):            
+        hxs = HtmlXPathSelector(response)
+        l = KuzovnoyruLoader(ProductItem(), hxs) 
+        
+        l.add_xpath("article", "//span[@class='art_detail']/span[@class='strong']/text()")
+        l.add_xpath("name", "//span[@itemprop='name']/text()")
+        l.add_xpath("brand", "//div[@class='propname'][text()='%s']/following-sibling::div/text()" % u"Марка авто ")
+        l.add_xpath("year", "//div[@class='propname'][text()='%s']/following-sibling::div/text()" % u"Год ")
+        l.add_xpath("manufacturer", "//div[@class='propname'][text()='%s']/following-sibling::div/text()" % u"Производитель ")
+        l.add_xpath("num_original", "//div[@class='propname'][text()='%s']/following-sibling::div/text()" % u"Номер оригинала ")
+        l.add_xpath("num_manufacturer", "//div[@class='propname'][text()='%s']/following-sibling::div/text()" % u"Номер производителя ")
+        l.add_xpath("price", "//div[@class='detail_item_price']/text()")
+        l.add_xpath("description", "string(//span[@itemprop='description'])")
+        l.add_xpath("avail", "string(//span[@class='avail'])")
+        l.add_xpath("cat_1", "string(//ul[@class='breadcrumb-navigation']/li[3])")
+        l.add_xpath("cat_2", "string(//ul[@class='breadcrumb-navigation']/li[5])")
+        l.add_xpath("cat_3", "string(//ul[@class='breadcrumb-navigation']/li[7])")
+        l.add_value("cat_3_desc", response.meta['cat_desc'])
+        l.add_xpath("metakey", "//meta[@name='keywords']/@content")
+        l.add_xpath("metadesc", "//meta[@name='description']/@content")
+        l.add_xpath("customtitle", "string(//title)")
+                
+        img_name = ""
+        img_url = hxs.xpath("string(//a[@rel='catalog-detail-images']/@href)").extract()[0]
+        pos = img_url.rfind("/")
+        if pos != -1:
+            img_name = img_url[pos + 1:]
+                
+        l.add_value("img_name", img_name)
+        
+        if img_url and not os.path.exists("images/" + img_name):
+            img = urllib.urlopen("http://kuzovnoy.ru" + img_url)
+            out = open("images/" + img_name, 'wb')
+            out.write(img.read())
+            out.close()
+        
+        return l.load_item()
+               
+        #l.add_value("V_ID", vid)
+        #l.add_xpath("Post", "string(//p[@class='title_30 vac-title'])")
+    

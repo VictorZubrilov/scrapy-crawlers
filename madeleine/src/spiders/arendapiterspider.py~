@@ -1,0 +1,185 @@
+# -*- coding: utf-8 -*-
+from scrapy.contrib.loader.processor import TakeFirst, MapCompose, Join
+#from scrapy.contrib.linkextractors.sgml import SgmlLinkExtractor
+from scrapy.contrib.linkextractors.lxmlhtml import LxmlLinkExtractor
+from scrapy.contrib.spiders import CrawlSpider, Rule
+from scrapy.selector import HtmlXPathSelector
+from scrapy.contrib.loader import ItemLoader
+from scrapy.http.cookies import CookieJar
+from scrapy.http import FormRequest, Request
+from scrapy import Spider
+from src.items import ProductItem
+from src.settings import DB_CONNECT
+import time, re, MySQLdb, urllib2, urllib, os, Cookie, cookielib
+from PIL import Image
+from io import BytesIO
+ 
+class ProductLoader(ItemLoader):
+    def proc_number(value):
+        return re.sub(u'[^0-9;]', '', re.sub(',', ';', value))
+        
+    def proc_address(value):
+        pos = value.find(u" на карте")
+        if pos != -1:
+            return value[:pos]
+            
+    default_output_processor = TakeFirst() 
+     
+    price_in = MapCompose(proc_number) 
+    phone_in = MapCompose(proc_number) 
+    address_in = MapCompose(proc_address)     
+ 
+class MadeleineSpider(Spider): 
+    name = "madeleinespider"
+    
+    colors_groups = []
+    themes_groups = []
+    
+    def dont_filter(request):
+        request.meta["follow"] = True
+        return request
+    
+    def start_requests(self):                           
+        yield FormRequest(url="http://www.arenda-piter.ru/master_result.php",
+                          formdata={'sposob': '1',
+                                    'region': '1',
+                                    'tip_poiska': '2',
+                                    'oper': '1',
+                                    'term1': '1',
+                                    'prod_ch0': '%ED%E5+%E2%E0%E6%ED%EE',
+                                    'est_ch_pro16': '1%EA.%EA%E2.',
+                                    'est_ch_pro17': '2%EA.%EA%E2.',
+                                    'est_ch_pro18': '3%EA.%EA%E2.',
+                                    's_ch0': '%ED%E5+%E2%E0%E6%ED%EE',
+                                    'r_ch0': '%ED%E5+%E2%E0%E6%ED%EE',
+                                    'rlo_ch0': '%ED%E5+%E2%E0%E6%ED%EE',
+                                    'm_ch0': '%ED%E5+%E2%E0%E6%ED%EE',
+                                    'price1': '18000',
+                                    'price2': '50000',
+                                    'val': 'RUR',
+                                    'foto': '1',
+                                    'SearchGO': '%C8%F1%EA%E0%F2%FC',
+                                    'var_number': '',
+                                    'SearchGO': '%C8%F1%EA%E0%F2%FC'},
+                          callback=self.parse_items,
+                          dont_filter = True,
+                          meta={'cookiejar': 0})
+                                 
+        rt = FormRequest(url="http://www.arenda-piter.ru/master_result.php",
+                          formdata={'sposob': '1',
+                                    'region': '1',
+                                    'tip_poiska': '2',
+                                    'oper': '3',
+                                    'prod_ch0': '%ED%E5+%E2%E0%E6%ED%EE',
+                                    'est_ch_pro1': '%C2%F1%E5+%CA%EE%EC%ED%E0%F2%FB',
+                                    'est_ch_pro28': '%EA1%282%29',
+                                    'est_ch_pro29': '%EA1%283%29',
+                                    'est_ch_pro30': '%EA1%284%29',
+                                    'est_ch_pro31': '%EA1%285+%E8+%E1%EE%EB%E5%E5%29',
+                                    'est_ch_pro32': '%EA2+%E8+%E1%EE%EB%E5%E5',
+                                    'est_ch_pro16': '1%EA.%EA%E2.',
+                                    'est_ch_pro17': '2%EA.%EA%E2.',
+                                    'est_ch_pro18': '3%EA.%EA%E2.',
+                                    'est_ch_pro19': '4%EA.%EA%E2.',
+                                    'est_ch_pro20': '5%EA.%EA%E2.+%E8+%E1%EE%EB%E5%E5',
+                                    's_ch0': '%ED%E5+%E2%E0%E6%ED%EE',
+                                    'r_ch0': '%ED%E5+%E2%E0%E6%ED%EE',
+                                    'rlo_ch0': '%ED%E5+%E2%E0%E6%ED%EE',
+                                    'm_ch0': '%ED%E5+%E2%E0%E6%ED%EE',
+                                    'price_ch0': '0',
+                                    'price1': '',
+                                    'price2': '',
+                                    'val': 'RUR',
+                                    'foto': '1',
+                                    'SearchGO': '%C8%F1%EA%E0%F2%FC',
+                                    'var_number': '',
+                                    'SearchGO': '%C8%F1%EA%E0%F2%FC'},
+                          callback=self.parse_items,
+                          dont_filter = True,
+                          meta={'cookiejar': 1})                          
+        
+        yield Request(url="http://pin7.ru",
+                          callback=self.pin7,
+                          dont_filter = True,
+                          meta={'cookiejar': 2})
+                          
+    def pin7(self, response):  
+        cookieJar = response.meta.setdefault('cookie_jar', CookieJar())
+        cookieJar.extract_cookies(response, response.request)
+        cookie = cookieJar._cookies['pin7.ru']['/']['PHPSESSID']
+        self.phpsessid = cookie.value
+        
+        yield FormRequest(url="http://pin7.ru",
+                          formdata={'fgo': '%C2%F5%EE%E4',
+                                    'fpin': '71937554'},
+                          callback=self.pin7_2,
+                          dont_filter = True,
+                          meta={'cookiejar': 2})
+    
+    def pin7_2(self, response):  
+        pass
+                
+    def parse_items(self, response): 
+        rows = response.xpath("//table[@class='tbm_01']/tr[@class='trm_01' or @class='trm_02'][contains(@id, 'idtr')]")
+                
+        for row in rows:
+            l = ArendapiterLoader(ApartmentItem(), row)
+            l.add_xpath("id_item", "normalize-space(td[@class='tdm_11']/em/a)")
+            l.add_xpath("type_transaction", "normalize-space(td[@class='tdm_01']/font[@color='#CC0033'])")
+            l.add_xpath("metro", "normalize-space(td[@class='tdm_03'])")
+            l.add_xpath("address", "normalize-space(td[@class='tdm_02'])")
+            l.add_xpath("floor", "normalize-space(td[@class='tdm_044'])")
+            l.add_xpath("area", "normalize-space(td[@class='tdm_042'])")
+            l.add_xpath("price", "normalize-space(td[@class='tdm_05']/text())")
+            l.add_xpath("contact_person", "normalize-space(td[@class='tdm_08']/span/a[@title='%s'])" % u"Страница риэлтора")
+            
+            tiptel_data = row.xpath("td[@class='tdm_08']/span/span[contains(@id, 'tl')]/@onclick").extract()[0].split("'")
+            request = FormRequest(url="http://www.arenda-piter.ru/tiptel.php", 
+                                  callback=self.parse_phone, 
+                                  formdata={'nom': tiptel_data[3],
+                                            'sss': tiptel_data[5]},
+                                  dont_filter = True) 
+            request.meta['cookiejar'] = response.meta['cookiejar']            
+            request.meta['loader'] = l
+            request.meta['foto_url'] = "http://www.arenda-piter.ru" + row.xpath("td[@class='tdm_09']/a/@href").extract()[0]
+            
+            yield request
+            
+    def parse_phone(self, response):
+        l = response.meta['loader']
+        foto_url = response.meta['foto_url']
+        
+        l.add_value("phone", response.body_as_unicode())
+            
+        request = Request(url=foto_url, callback=self.parse_images) 
+        request.meta['cookiejar'] = response.meta['cookiejar']            
+        request.meta['loader'] = l
+        
+        return request
+        
+    def parse_images(self, response): 
+        l = response.meta['loader']
+        
+        foto = ""
+        
+        funcs = response.xpath("//script[contains(text(), 'lupa_min.php')]/text()").extract()
+        for func in funcs:
+            func_split = func.split("'")
+            img_name = func_split[5]
+            ff = func_split[7]
+            foto = foto + img_name + ";" 
+            
+            img_url = "http://pin7.ru/lupa_min.php?fn=%s&ff=%s&ft=%%20%%20" % (img_name, ff)
+            print "load image", img_url
+            
+            req = urllib2.Request(img_url)
+            req.add_header("Cookie", "PHPSESSID=%s" % self.phpsessid)
+            response = urllib2.urlopen(req)
+            img = Image.open(BytesIO(response.read()))
+            w,h = img.size
+            img.crop((0, 0, w, h - 50)).save("foto/" + img_name)
+                        
+        l.add_value("foto", foto)
+        
+        return l.load_item();
+    
