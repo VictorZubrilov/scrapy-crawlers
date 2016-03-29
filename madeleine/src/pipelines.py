@@ -27,7 +27,7 @@ class MadeleinePipeline(object):
         file = open('data/data%s.csv' % datetime.today().strftime('%y%m%d%H%M%S'), 'w+b')
         self.files[spider] = file
         self.exporter = CsvItemExporter(file, quoting=csv.QUOTE_ALL, encoding='utf8');
-        self.exporter.fields_to_export = ['path', 'name', 'colors', 'sizes', 'price', 'care', 'consist', 'description', 'brand', 'images', 'images360', 'video_url', 'path_upsell', 'path_related', 'breadcrumbs', 'id_supplier', 'themes']
+        self.exporter.fields_to_export = ['masterID', 'path', 'name', 'colors', 'sizes', 'price', 'care', 'consist', 'description', 'brand', 'images', 'images360', 'video_url', 'path_upsell', 'path_related', 'breadcrumbs', 'id_supplier', 'themes']
         self.exporter.start_exporting()
 
     def spider_closed(self, spider):

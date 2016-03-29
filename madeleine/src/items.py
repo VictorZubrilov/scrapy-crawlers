@@ -8,6 +8,7 @@
 import scrapy
 
 class ProductItem(scrapy.Item):
+    masterID = scrapy.Field()
     path = scrapy.Field()
     name = scrapy.Field()
     colors = scrapy.Field()
