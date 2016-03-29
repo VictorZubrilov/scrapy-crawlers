@@ -19,7 +19,7 @@ import collections
 class MadeleineSpider(Spider):
     name = "madeleinespider"
 
-    check_values = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    check_values = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
     def __init__(self):
         dispatcher.connect(self.spider_closed, signals.spider_closed)
@@ -52,13 +52,78 @@ class MadeleineSpider(Spider):
             s.quit()
 
     def start_requests(self):
-        return [Request(url="http://www.madeleine.de/mode/",
-                          callback=self.parse_page),
+        l = [Request(url="http://www.madeleine.de/mode/",
+                                          callback=self.parse_page),
                 Request(url="http://www.madeleine.de/schuhe-accessoires/",
-                          callback=self.parse_page)]
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/abendmode/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/bademode/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/blazer/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/blusen/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/dessous/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/freizeit-homewear/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/hosen/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/hosenanzuege/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/jacken-maentel/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/kleider/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/kostueme/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/nachtwaesche/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/overalls/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/roecke/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/shirts-tops/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/mode/strickmode/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/schuhe/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/accessoires/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/schuhe/ballerinas/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/schuhe/boots/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/schuhe/mokassins/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/schuhe/pumps/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/schuhe/sandaletten/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/schuhe/stiefel-stiefeletten/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/schuhe/pantoletten/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/accessoires/guertel/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/accessoires/handschuhe/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/accessoires/muetzen-huete/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/accessoires/schals-tuecher/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/accessoires/schmuck/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/accessoires/sonnenbrillen/",
+                                          callback=self.parse_page),
+                Request(url="http://www.madeleine.de/schuhe-accessoires/accessoires/taschen/",
+                                          callback=self.parse_page)]
+        return l
 
         #test
-        #product_path = "/langer-kuscheliger-damen-strickschal-mit-alpaka-0s1028021.html"
+        #product_path = "/viskose-shirt-im-layering-look-0a1025156.html"
         #product_path = "/chantelle-slip-mit-spitze-0a1027019.html"
         #item = ProductItem()
         #item["path"] = product_path
@@ -98,6 +163,7 @@ class MadeleineSpider(Spider):
 
         # ------name------
 
+        item["masterID"] = response.xpath("substring-before(substring-after(//script[contains(text(), 'var masterId=')], 'var masterId=\"'), '\";')").extract()[0]
         item["name"] = response.xpath("string(//h1)").extract()[0]
 
         # ------care------
@@ -191,6 +257,8 @@ class MadeleineSpider(Spider):
         articleData = json.loads(response.xpath("substring-before(substring-after(//script[contains(text(), 'var articleData=')], 'var articleData='), ';')").extract()[0])
         availabilityTextLookUp = json.loads(response.xpath("substring-before(substring-after(//script[contains(text(), 'var availabilityTextLookUp=')], 'var availabilityTextLookUp='), ';')").extract()[0])
 
+        #print "!!!!!", response.body_as_unicode()
+
         sizes_in_tabs = []
         tabs_names = []
 
@@ -247,21 +315,21 @@ class MadeleineSpider(Spider):
                     price = price + "%s:" % article
                     price = price + "%s:" % tab_name[1]
                     price = price + "%s:" % size
-                    price = price + "%s:" % size_data["Price"]
+                    price = price + "%s:" % size_data["Price"].replace(",", ".")
 
                     if size_data["SalePrice"] == None:
                         price = price + "N;"
                     else:
-                        price = price + "%s;" % size_data["SalePrice"]
+                        price = price + "%s;" % size_data["SalePrice"].replace(",", ".")
             if not tabs_names:
                 size_data = productData[article]["Sizes"]["ohne"]
 
-                price = price + "%s:::%s:" % (article, size_data["Price"])
+                price = price + "%s:::%s:" % (article, size_data["Price"].replace(",", "."))
 
                 if size_data["SalePrice"] == None:
                     price = price + "N;"
                 else:
-                    price = price + "%s;" % size_data["SalePrice"]
+                    price = price + "%s;" % size_data["SalePrice"].replace(",", ".")
 
         item["price"] = price[:-1]
 
