@@ -123,7 +123,7 @@ class MadeleineSpider(Spider):
         return l
 
         #test
-        #product_path = "/viskose-shirt-im-layering-look-0a1025156.html"
+        #product_path = "/sandalette-mit-ziernieten-0s1023393.html"
         #product_path = "/chantelle-slip-mit-spitze-0a1027019.html"
         #item = ProductItem()
         #item["path"] = product_path
@@ -353,6 +353,16 @@ class MadeleineSpider(Spider):
         if imgToKdbnrsx_text:
             imgToKdbnrsx = json.loads(imgToKdbnrsx_text, object_pairs_hook=collections.OrderedDict)
 
+            sizes_imgs = []
+
+            pos = 0
+            pos_end = 0
+            while True:
+                pos = response.body_as_unicode().find("ArticleZoom.addImage(", pos_end)
+                if pos == -1: break
+                pos_end = response.body_as_unicode().find(");", pos)
+                sizes_imgs.append(json.loads(response.body_as_unicode()[pos + 21:pos_end]))
+
             for article in kdbnrSxData.keys():
                 url = kdbnrSxData[article]["Url"]
                 url_l = url.split("_")
@@ -360,12 +370,20 @@ class MadeleineSpider(Spider):
                 url_l[2] = "0"
                 url_l[3] = "0"
                 url_l[4] = "0"
-                url = "_".join(url_l)
                 img_id = kdbnrSxData[article]["ImageId"]
 
                 if imgToKdbnrsx:
                     for img in imgToKdbnrsx.keys():
                         if imgToKdbnrsx[img] == article:
+                            url = ""
+                            for s in sizes_imgs:
+                                if img == str(s["id"]):
+                                    url_l[5] = str(s["width"])
+                                    ur = url_l[6].split("/")
+                                    ur[0] = str(s["height"])
+                                    url_l[6] = "/".join(ur)
+                            url = "_".join(url_l)
+
                             images = images + "%s:%s;" % (article, url.replace(img_id, img))
                 else:
                     images = images + "%s:%s" % (article, url)
